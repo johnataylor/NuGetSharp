@@ -13,7 +13,7 @@ namespace NuGetSharp
 {
     class Program
     {
-        static Task<string> DownloadPackage(string host, string port, string path, string package, string userAgent, string nugetOperation, string folder)
+        static Task<string> DownloadPackage(string host, string port, string path, string package, string userAgent, string nugetOperation, string folder, string filenameMangle = "")
         {
             HttpClient client = new HttpClient();
 
@@ -21,7 +21,14 @@ namespace NuGetSharp
 
             CancellationTokenSource cts = new CancellationTokenSource();
 
-            Task<HttpResponseMessage> responseTask = client.GetAsync(requestUri, cts.Token);
+            //Task<HttpResponseMessage> responseTask = client.GetAsync(requestUri, cts.Token);
+
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+
+            request.Headers.Add("user-agent", userAgent);
+            request.Headers.Add("NuGet-Operation", nugetOperation);
+
+            Task<HttpResponseMessage> responseTask = client.SendAsync(request);
 
             TaskCompletionSource<string> tcs = new TaskCompletionSource<string>();
 
@@ -45,7 +52,7 @@ namespace NuGetSharp
                             filename = package.Replace('/', '_');
                         }
 
-                        FileStream fileStream = File.Create(folder + filename);
+                        FileStream fileStream = File.Create(folder + filename + filenameMangle);
 
                         Task contentTask = responseMessage.Content.CopyToAsync(fileStream);
 
@@ -86,7 +93,7 @@ namespace NuGetSharp
                 string package = "EntityFramework/5.0.0";
                 string path = "/api/v2/Package/" + package;
 
-                string userAgent = "NuGetSharp Testing";
+                string userAgent = "NuGetSharp Testing (Test0)";
                 string nugetOperation = "Install";
 
                 string folder = "./";
@@ -104,11 +111,56 @@ namespace NuGetSharp
             }
         }
 
+        static void Test1()
+        {
+            try
+            {
+                string host = "preview.nuget.org";
+                string port = "80";
+                string package = "EntityFramework/5.0.0";
+                string path = "/api/v2/Package/" + package;
+
+                string userAgent = "NuGetSharp Testing (Test1)";
+                string nugetOperation = "Install";
+
+                string folder = "./";
+
+                const int Parallel = 10;
+                const int Sequential = 3;
+
+                int index = 0;
+
+                for (int j = 0; j < Sequential; j++)
+                {
+                    Task<string>[] downloadTasks = new Task<string>[Parallel];
+
+                    for (int i = 0; i < Parallel; i++)
+                    {
+                        string filenameMangle = "_" + (index++).ToString();
+
+                        downloadTasks[i] = DownloadPackage(host, port, path, package, userAgent, nugetOperation, folder, filenameMangle);
+                    }
+
+                    Task allDone = Task.WhenAll(downloadTasks);
+
+                    allDone.Wait();
+                }
+
+                Console.WriteLine("all done");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e.Message);
+            }
+        }
+
+
         static void Main(string[] args)
         {
             try
             {
-                Test0();
+                //Test0();
+                Test1();
             }
             catch (Exception e)
             {
